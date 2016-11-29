@@ -131,8 +131,6 @@ pub fn print_search_results(currencies: &Vec<&Currency>){
     for (idx, currency) in currencies.iter().enumerate() {
         println!("{}. {}", (idx + 1), currency.currency_name);
     }
-
-    println!("Please Select an Option");
 }
 
 
@@ -146,7 +144,7 @@ pub fn print_input_options(){
 }
 
 
-pub fn read_input_option() -> Result<i8, io::Error> {
+pub fn read_input_option(max_options: i8) -> Result<i8, io::Error> {
 
     println!("Please enter an Option: ");
 
@@ -158,7 +156,7 @@ pub fn read_input_option() -> Result<i8, io::Error> {
         .map(|_| user_input.trim().to_string()).unwrap();
 
     if let Ok(x) =  user_input.parse::<i8>() {
-        if x < 1 || x > 2 {
+        if x < 1 || x > max_options {
             return Err(Error::new(ErrorKind::InvalidInput, "Invalid selection"));
         }
         else{
@@ -169,7 +167,7 @@ pub fn read_input_option() -> Result<i8, io::Error> {
     }
 }
 
-pub fn read_search_term() -> Result<String, Error> {
+ fn read_search_term() -> Result<String, Error> {
     let mut user_input: String = String::new();
     let stdin = io::stdin();
     let mut stdin_handle = stdin.lock();
@@ -183,21 +181,76 @@ pub fn read_search_term() -> Result<String, Error> {
                                                      )
 }
 
-
-// ToDo : Pick up Here
-pub fn accept_search_input(available_currencies: &HashMap<String, Currency>){
-    println!("Please Enter first three letters of the currency");
+fn read_valid_search_term() -> String {
 
     let mut from_inp = read_search_term();
     while let Err(x) = from_inp {
         println!("Need Atleast 3 characters, Try again");
         from_inp = read_search_term();
     }
+    from_inp.unwrap()
+}
 
-    let search_results: Vec<&Currency> = search_country_name(&from_inp.unwrap(), available_currencies);
 
-    if search_results.len() == 0 {
-        println!("No Search Results, Try again");
-        from_inp = read_search_term();
+ fn search_until_match<'a>(search_term: &String, available_currencies: &'a HashMap<String, Currency>) -> Vec<&'a Currency>{
+
+    let mut search_results: Vec<&Currency>  = Vec::new();
+
+    while search_results.is_empty() {
+        search_results = search_country_name(&search_term, &available_currencies);
     }
+
+    return search_results;
+}
+
+fn get_valid_currency_option<'a>(search_currencies: &'a Vec<&Currency>)  -> &'a String {
+
+    let num_opts = search_currencies.len() as i8;
+    let mut result = read_input_option(num_opts);
+
+    while let Err(x) = result {
+        println!("Invalid Selection, Try again");
+        result = read_input_option(num_opts);
+    }
+
+    let select_option: usize =  result.unwrap() as usize;
+    let select_currency: &Currency = search_currencies.get(select_option - 1).unwrap();
+
+    return &select_currency.currency_name;
+}
+
+// ToDo : Pick up Here
+pub fn get_currency_from_search(available_currencies: &HashMap<String, Currency>) -> String {
+    let search_term = read_valid_search_term();
+    let search_results: Vec<&Currency> = search_until_match(&search_term, &available_currencies);
+    print_search_results(&search_results);
+    let select_name: &String = get_valid_currency_option(&search_results);
+
+    let mut code: String  = String::new();
+
+    for (key, currency) in available_currencies.iter(){
+        if currency.currency_name.eq(select_name) {
+            code = key.clone();
+            break;
+        }
+    }
+    return code;
+}
+
+
+pub fn accept_user_input_from_search(available_currencies: &HashMap<String, Currency>) -> Result<UserInput, Error>{
+    println!("Please Enter any three letters of the currency to convert From: ");
+    let from_currency: String = get_currency_from_search(&available_currencies);
+    println!("Please Enter any three letters of the currency to convert To: ");
+    let to_currency: String = get_currency_from_search(&available_currencies);
+    println!("How much would like to Convert?");
+    let amt: f64 = (read_amount())?;
+
+    let userInput: UserInput = UserInput {
+        amount: amt,
+        from_currency_unit: from_currency,
+        to_currency_unit: to_currency,
+    };
+
+    return Ok(userInput);
 }
